@@ -1,0 +1,321 @@
+/* VST Sentry Kiosk — Main Layout */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a1a;
+}
+
+/* --- Header --- */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background: #ffffff;
+    border-bottom: 2px solid #e0e0e0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.header-logo {
+    height: 44px;
+    width: auto;
+}
+
+.header-divider {
+    width: 1px;
+    height: 28px;
+    background: #ddd;
+}
+
+.header-left h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+#unit-names {
+    font-size: 1rem;
+    color: #666;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#clock {
+    font-size: 1.3rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #333;
+}
+
+/* --- Connection Status Dot --- */
+.status-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.connected {
+    background: #22c55e;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.status-dot.disconnected {
+    background: #ef4444;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+.status-dot.reconnecting {
+    background: #f59e0b;
+    animation: pulse-dot 1s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* --- Summary Bar --- */
+.summary-bar {
+    display: flex;
+    gap: 24px;
+    padding: 8px 24px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #666;
+}
+
+.summary-item span {
+    font-weight: 700;
+}
+
+.summary-alerts span {
+    color: #dc2626;
+}
+
+.summary-alerts:not(.has-alerts) {
+    opacity: 0.5;
+}
+
+.summary-alerts.has-alerts {
+    color: #dc2626;
+}
+
+.summary-offline span {
+    color: #9ca3af;
+}
+
+.summary-monitoring span {
+    color: #2d8a4e;
+}
+
+/* --- Disconnect Overlay --- */
+.disconnect-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s ease;
+}
+
+.disconnect-overlay.hidden {
+    display: none;
+}
+
+.disconnect-content {
+    text-align: center;
+    color: #ffffff;
+}
+
+.disconnect-icon img {
+    width: 80px;
+    height: 80px;
+    filter: invert(1);
+    margin-bottom: 20px;
+}
+
+.disconnect-content h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+
+.disconnect-content p {
+    font-size: 1.2rem;
+    color: #aaa;
+    margin-bottom: 24px;
+}
+
+.disconnect-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    margin: 0 auto;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* --- Room Grid --- */
+main {
+    padding: 20px 24px;
+    height: calc(100vh - 100px);
+    overflow-y: auto;
+}
+
+.unit-section {
+    margin-bottom: 24px;
+}
+
+.unit-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 12px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #ddd;
+}
+
+.room-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+}
+
+/* --- Room Tile (two-panel card) --- */
+.room-tile {
+    display: flex;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    cursor: default;
+    transition: transform 0.1s ease;
+    min-height: 100px;
+}
+
+.room-tile:active {
+    transform: scale(0.98);
+}
+
+.tile-icon-panel {
+    width: 110px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 8px;
+    color: #ffffff;
+    gap: 4px;
+}
+
+.tile-icon-panel .tile-icon {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+}
+
+.tile-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.2;
+    text-transform: capitalize;
+}
+
+.tile-info-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: #ffffff;
+}
+
+.tile-room-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.tile-status-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.tile-status-text.high {
+    color: #dc2626;
+}
+
+.tile-status-text.low {
+    color: #d97706;
+}
+
+.tile-alert-duration {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #999;
+    margin-top: 2px;
+}
+
+/* --- Acknowledged indicator --- */
+.tile-acked .tile-info-panel::after {
+    content: "\2713";
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    font-size: 1.2rem;
+    color: #22c55e;
+}
+
+.room-tile {
+    position: relative;
+}
+
+/* --- Placeholder --- */
+.placeholder-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    font-size: 1.5rem;
+    color: #999;
+}

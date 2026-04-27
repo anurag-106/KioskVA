@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=VST Kiosk Display
+Exec=/opt/vst-kiosk/bin/vst-kiosk-chromium.sh
+X-GNOME-Autostart-enabled=true

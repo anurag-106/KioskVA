@@ -1,0 +1,11 @@
+Package: vst-kiosk
+Version: 1.0.0
+Section: misc
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.12), python3-venv
+Maintainer: VirtuSense Technologies Inc. <support@virtusense.com>
+Description: VST Sentry Kiosk Display
+ Stateless fall-prevention alert display for VA hospital nurse stations.
+ Connects to VST Server via WebSocket and displays real-time room status
+ and patient fall alerts on wall-mounted monitors.
