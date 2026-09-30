@@ -1,0 +1,77 @@
+/* VST Sentry Kiosk — Alert States & Colors */
+
+/* --- Panel Colors by State --- */
+
+/* Normal / Monitoring — Green */
+.tile-icon-panel.state-normal {
+    background: #2d8a4e;
+}
+
+/* Active Alert (Exit) — Red */
+.tile-icon-panel.state-highRisk {
+    background: #dc2626;
+    animation: flash-red 1s ease-in-out infinite;
+}
+
+.tile-icon-panel.state-lowRisk {
+    background: #dc2626;
+    animation: pulse-red 2s ease-in-out infinite;
+}
+
+@keyframes flash-red {
+    0%, 100% { background: #dc2626; }
+    50% { background: #991b1b; }
+}
+
+@keyframes pulse-red {
+    0%, 100% { background: #dc2626; }
+    50% { background: #b91c1c; }
+}
+
+/* Paused — Yellow */
+.tile-icon-panel.state-paused {
+    background: #d97706;
+}
+
+/* Calibration — Yellow */
+.tile-icon-panel.state-calibration {
+    background: #d97706;
+}
+
+/* Deactivated — Gray */
+.tile-icon-panel.state-deactivated {
+    background: #6b7280;
+}
+
+/* Offline / Disconnected — Gray */
+.tile-icon-panel.state-offline {
+    background: #9ca3af;
+}
+
+/* No Device — Gray */
+.tile-icon-panel.state-no_device {
+    background: #9ca3af;
+}
+
+/* Unregistered — Gray */
+.tile-icon-panel.state-unregistered {
+    background: #9ca3af;
+}
+
+/* --- Alert tile border glow --- */
+.room-tile.alert-active {
+    box-shadow: 0 0 12px rgba(220, 38, 38, 0.4);
+}
+
+/* --- Dimmed info panel for offline/no device --- */
+.room-tile.device-offline .tile-info-panel,
+.room-tile.device-no_device .tile-info-panel,
+.room-tile.device-deactivated .tile-info-panel {
+    background: #f9fafb;
+}
+
+.room-tile.device-offline .tile-room-number,
+.room-tile.device-no_device .tile-room-number,
+.room-tile.device-deactivated .tile-room-number {
+    color: #9ca3af;
+}

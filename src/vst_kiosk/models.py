@@ -79,6 +79,27 @@ class DeviceOnlineMessage(BaseModel):
     unit_name: str = ""
 
 
+class KeyboardEventMessage(BaseModel):
+    """Nurse paused/resumed/changed mode on NUC."""
+    type: Literal["keyboard_event"]
+    device_id: str = ""
+    room_id: int
+    room_name: str = ""
+    unit_name: str = ""
+    event_status: str = ""
+    monitoring_type: str = ""
+    nuc_status: str = ""
+
+
+class NurseArrivedMessage(BaseModel):
+    """NUC detected second person near patient."""
+    type: Literal["nurse_arrived"]
+    device_id: str = ""
+    room_id: int
+    room_name: str = ""
+    unit_name: str = ""
+
+
 class RoomAddedMessage(BaseModel):
     type: Literal["room_added"]
     room_id: int
@@ -120,6 +141,8 @@ ServerMessage = Annotated[
         AlertClearedMessage,
         DeviceOfflineMessage,
         DeviceOnlineMessage,
+        KeyboardEventMessage,
+        NurseArrivedMessage,
         RoomAddedMessage,
         RoomRemovedMessage,
     ],

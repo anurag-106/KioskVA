@@ -73,6 +73,39 @@
         });
     });
 
+    // Keyboard event — nurse paused/resumed/switched mode on NUC
+    window.addEventListener("ws:keyboard_event", function (e) {
+        var data = e.detail;
+        var statusMap = {
+            "system_paused": "paused",
+            "system_resumed": "online",
+            "off": "deactivated",
+            "system_on_bed": "online",
+            "system_on_chair": "online",
+            "calibration": "calibration"
+        };
+        var updates = {};
+        var mapped = statusMap[data.event_status];
+        if (mapped) {
+            updates.nuc_status = mapped;
+        }
+        // Only update monitoring_type for explicit mode switches
+        if (data.event_status === "system_on_bed" || data.event_status === "system_on_chair") {
+            updates.monitoring_type = data.monitoring_type;
+        }
+        // If resuming or switching mode, clear stale alert display
+        if (data.event_status === "system_resumed" || data.event_status === "system_on_bed" || data.event_status === "system_on_chair") {
+            updates.active_alert = null;
+        }
+        Grid.updateRoom(data.room_id, updates);
+        AudioAlert.recalculate();
+    });
+
+    // Nurse arrived — keep alert visible, server will send alert_cleared
+    window.addEventListener("ws:nurse_arrived", function (e) {
+        // Just forward to grid for potential visual indicator in future
+    });
+
     // Room added — request fresh config
     window.addEventListener("ws:room_added", function () {
         KioskWS.send({ type: "sync_request" });

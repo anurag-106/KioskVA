@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VST Sentry — Kiosk Display</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/alerts.css">
+</head>
+<body>
+    <header id="header">
+        <div class="header-left">
+            <img src="/icons/vst_logo.svg" alt="VST Sentry" class="header-logo">
+            <span class="header-divider"></span>
+            <h1 id="facility-name">VST Sentry</h1>
+            <span id="unit-names"></span>
+        </div>
+        <div class="header-right">
+            <span id="connection-status" class="status-dot disconnected" title="Disconnected"></span>
+            <span id="clock">--:--:--</span>
+        </div>
+    </header>
+
+    <div id="summary-bar" class="summary-bar">
+        <span class="summary-item summary-alerts"><span id="summary-alert-count">0</span> Active Alerts</span>
+        <span class="summary-item summary-offline"><span id="summary-offline-count">0</span> Offline</span>
+        <span class="summary-item summary-monitoring"><span id="summary-monitoring-count">0</span> Monitoring</span>
+        <span class="summary-item summary-total"><span id="summary-total-count">0</span> Total Rooms</span>
+    </div>
+
+    <div id="disconnect-overlay" class="disconnect-overlay hidden">
+        <div class="disconnect-content">
+            <div class="disconnect-icon">
+                <img src="/icons/disconnected.svg" alt="Disconnected">
+            </div>
+            <h2>Connection Lost</h2>
+            <p>Attempting to reconnect to server...</p>
+            <div class="disconnect-spinner"></div>
+        </div>
+    </div>
+
+    <main id="room-grid">
+        <div class="placeholder-message">Connecting to server...</div>
+    </main>
+
+    <script src="/js/ws.js"></script>
+    <script src="/js/grid.js"></script>
+    <script src="/js/audio.js"></script>
+    <script src="/js/clock.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

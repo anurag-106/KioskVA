@@ -42,7 +42,7 @@ def load_config(conf_path: str | None = None) -> KioskConfig:
     ssl_verify = ssl_verify_raw.lower() in ("true", "1", "yes")
 
     return KioskConfig(
-        server_ip=get("server", "ip", "VST_SERVER_IP", "127.0.0.1"),
+        server_ip=get("server", "ip", "VST_SERVER_IP", "192.168.50.1"),
         server_port=int(get("server", "port", "VST_SERVER_PORT", "443")),
         kiosk_id=get("kiosk", "id", "VST_KIOSK_ID", "KIOSK-DEFAULT"),
         local_port=int(get("kiosk", "local_port", "VST_LOCAL_PORT", "8080")),

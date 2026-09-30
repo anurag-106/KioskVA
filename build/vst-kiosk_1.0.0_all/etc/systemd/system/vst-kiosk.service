@@ -1,0 +1,24 @@
+[Unit]
+Description=VST Sentry Kiosk Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/vst-kiosk/venv/bin/python -m vst_kiosk
+WorkingDirectory=/opt/vst-kiosk
+Restart=always
+RestartSec=5
+User=vst-kiosk
+Group=vst-kiosk
+Environment=PYTHONPATH=/opt/vst-kiosk/src
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/vst-kiosk /var/log/vst-kiosk
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

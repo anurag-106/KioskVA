@@ -19,6 +19,8 @@ from .models import (
     ConnectionStatusMessage,
     DeviceOfflineMessage,
     DeviceOnlineMessage,
+    KeyboardEventMessage,
+    NurseArrivedMessage,
     RoomAddedMessage,
     RoomRemovedMessage,
     parse_server_message,
@@ -141,6 +143,35 @@ class MessageRelay:
         elif isinstance(msg, DeviceOnlineMessage):
             self._update_room_in_cache(msg.room_id, {
                 "nuc_status": "online",
+            })
+
+        elif isinstance(msg, KeyboardEventMessage):
+            updates = {}
+            # Map event_status to nuc_status for display
+            status_map = {
+                "system_paused": "paused",
+                "system_resumed": "online",
+                "off": "deactivated",
+                "system_on_bed": "online",
+                "system_on_chair": "online",
+                "calibration": "calibration",
+            }
+            mapped = status_map.get(msg.event_status)
+            if mapped:
+                updates["nuc_status"] = mapped
+            # Only update monitoring_type for explicit mode switches
+            if msg.event_status in ("system_on_bed", "system_on_chair"):
+                updates["monitoring_type"] = msg.monitoring_type
+            # If resuming or switching mode, clear any stale alert
+            if msg.event_status in ("system_resumed", "system_on_bed", "system_on_chair"):
+                updates["active_alert"] = None
+            if updates:
+                self._update_room_in_cache(msg.room_id, updates)
+
+        elif isinstance(msg, NurseArrivedMessage):
+            # Clear alert — nurse is present
+            self._update_room_in_cache(msg.room_id, {
+                "active_alert": None,
             })
 
         elif isinstance(msg, RoomRemovedMessage):

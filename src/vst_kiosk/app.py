@@ -13,7 +13,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -114,6 +114,13 @@ def create_app(config: KioskConfig) -> FastAPI:
         }
         await relay.handle_server_message(json.dumps(mock_config))
         return JSONResponse({"status": "mock data injected"})
+
+    @app.post("/mock-event")
+    async def inject_event(request: Request):
+        """DEV ONLY: Inject a single server event to test message handling."""
+        body = await request.json()
+        await relay.handle_server_message(json.dumps(body))
+        return JSONResponse({"status": "event injected", "type": body.get("type")})
 
     # Mount static subdirectories (CSS, JS, audio, icons)
     if FRONTEND_DIR.exists():

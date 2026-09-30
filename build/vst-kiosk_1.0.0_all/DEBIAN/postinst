@@ -1,0 +1,27 @@
+#!/bin/bash
+set -e
+
+# Create service user
+useradd --system --no-create-home --shell /usr/sbin/nologin vst-kiosk 2>/dev/null || true
+
+# Set ownership
+chown -R vst-kiosk:vst-kiosk /var/lib/vst-kiosk /var/log/vst-kiosk
+
+# Create Python venv and install wheels offline
+if [ ! -d /opt/vst-kiosk/venv ]; then
+    python3 -m venv /opt/vst-kiosk/venv
+fi
+
+if [ -d /opt/vst-kiosk/wheels ] && ls /opt/vst-kiosk/wheels/*.whl 1>/dev/null 2>&1; then
+    /opt/vst-kiosk/venv/bin/pip install --no-index --find-links=/opt/vst-kiosk/wheels /opt/vst-kiosk/wheels/*.whl 2>/dev/null || true
+fi
+
+# Reload systemd and enable service
+systemctl daemon-reload
+systemctl enable vst-kiosk.service
+
+echo ""
+echo "=== VST Kiosk installed ==="
+echo "Configure: sudo nano /etc/vst-kiosk.conf"
+echo "Start:     sudo systemctl start vst-kiosk"
+echo ""

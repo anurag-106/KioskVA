@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+
+systemctl stop vst-kiosk.service 2>/dev/null || true
+systemctl disable vst-kiosk.service 2>/dev/null || true
