@@ -16,8 +16,9 @@ const AudioAlert = (function () {
     function init() {
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            loadBuffer("/audio/high_alert.wav", function (buf) { highBuffer = buf; });
-            loadBuffer("/audio/low_alert.wav", function (buf) { lowBuffer = buf; });
+            // An alert may already be showing when a buffer finishes loading
+            loadBuffer("/audio/high_alert.wav", function (buf) { highBuffer = buf; recalculate(); });
+            loadBuffer("/audio/low_alert.wav", function (buf) { lowBuffer = buf; recalculate(); });
             initialized = true;
 
             // Resume context on any user interaction (belt and suspenders)
@@ -58,15 +59,15 @@ const AudioAlert = (function () {
         if (tier === currentTier) return;
 
         stop();
-        currentTier = tier;
-
         if (tier === "silent") return;
 
         var buffer = (tier === "high") ? highBuffer : lowBuffer;
         if (!buffer) {
+            // Leave tier unset so recalculate() retries once the buffer loads
             console.warn("[Audio] Buffer not loaded for tier:", tier);
             return;
         }
+        currentTier = tier;
 
         // Resume if suspended (kiosk mode flag should prevent this, but just in case)
         if (audioCtx.state === "suspended") {
@@ -93,14 +94,8 @@ const AudioAlert = (function () {
      * Call this whenever alert states change.
      */
     function recalculate() {
-        var tiles = document.querySelectorAll(".tile-icon-panel");
-        var hasHigh = false;
-        var hasLow = false;
-
-        tiles.forEach(function (panel) {
-            if (panel.classList.contains("state-highRisk")) hasHigh = true;
-            if (panel.classList.contains("state-lowRisk")) hasLow = true;
-        });
+        var hasHigh = !!document.querySelector(".tile-icon-panel.state-highRisk, .fallback-alert.level-highRisk");
+        var hasLow = !!document.querySelector(".tile-icon-panel.state-lowRisk, .fallback-alert.level-lowRisk");
 
         if (hasHigh) {
             play("high");

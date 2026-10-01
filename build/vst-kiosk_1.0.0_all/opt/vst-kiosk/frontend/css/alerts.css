@@ -75,3 +75,52 @@
 .room-tile.device-deactivated .tile-room-number {
     color: #9ca3af;
 }
+
+/* --- Fallback alerts (no tile on this kiosk) --- */
+.fallback-alerts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 24px;
+    background: #fef2f2;
+    border-bottom: 2px solid #dc2626;
+}
+
+.fallback-alerts.hidden {
+    display: none;
+}
+
+.fallback-alert {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.fallback-alert.level-highRisk {
+    animation: flash-red 1s ease-in-out infinite;
+}
+
+.fallback-alert.level-lowRisk {
+    animation: pulse-red 2s ease-in-out infinite;
+}
+
+.fallback-alert strong {
+    letter-spacing: 0.05em;
+}
+
+.fallback-where {
+    font-weight: 700;
+}
+
+.fallback-alert.acked::after {
+    content: "\2713";
+    margin-left: auto;
+    font-size: 1.2rem;
+    color: #bbf7d0;
+}

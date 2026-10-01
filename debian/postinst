@@ -7,6 +7,13 @@ useradd --system --no-create-home --shell /usr/sbin/nologin vst-kiosk 2>/dev/nul
 # Set ownership
 chown -R vst-kiosk:vst-kiosk /var/lib/vst-kiosk /var/log/vst-kiosk
 
+# Local HTTPS cert for the kiosk page (kept across upgrades)
+mkdir -p /etc/vst-kiosk
+/opt/vst-kiosk/bin/gen-local-cert.sh /etc/vst-kiosk >/dev/null
+chown root:vst-kiosk /etc/vst-kiosk/local.key
+chmod 640 /etc/vst-kiosk/local.key
+chmod 644 /etc/vst-kiosk/local.crt
+
 # Create Python venv and install wheels offline
 if [ ! -d /opt/vst-kiosk/venv ]; then
     python3 -m venv /opt/vst-kiosk/venv
@@ -23,5 +30,6 @@ systemctl enable vst-kiosk.service
 echo ""
 echo "=== VST Kiosk installed ==="
 echo "Configure: sudo nano /etc/vst-kiosk.conf"
+echo "Server CA: sudo cp server.crt /etc/vst-kiosk/server.crt   (from the VST server's certs/)"
 echo "Start:     sudo systemctl start vst-kiosk"
 echo ""

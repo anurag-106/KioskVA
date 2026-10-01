@@ -1,0 +1,9 @@
+# TLS material (local.key is a private key)
+certs/
+__pycache__/
+.venv/
+build/
+wheels/
+dev_kiosk.db
+dev_kiosk.db-shm
+dev_kiosk.db-wal

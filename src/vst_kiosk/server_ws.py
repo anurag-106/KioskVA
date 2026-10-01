@@ -101,7 +101,11 @@ class ServerConnection:
             async for message in ws:
                 if isinstance(message, str):
                     logger.info("RAW from server: %s", message[:500])
-                    await self.relay.handle_server_message(message)
+                    try:
+                        await self.relay.handle_server_message(message)
+                    except Exception:
+                        # One bad message (or a debug-DB write failure) must not drop the link
+                        logger.exception("Failed to handle server message")
                 else:
                     logger.warning("Received binary message from server (%d bytes), ignoring", len(message))
 

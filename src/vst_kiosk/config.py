@@ -9,6 +9,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_CONF_PATH = "/etc/vst-kiosk.conf"
+PKG_CERT_DIR = Path("/etc/vst-kiosk")
+
+
+def _pkg_file(name: str) -> str:
+    """Path of a cert installed by the .deb, if present. Keeps upgraded kiosks
+    (whose edited /etc/vst-kiosk.conf predates these keys) on HTTPS."""
+    path = PKG_CERT_DIR / name
+    return str(path) if path.is_file() else ""
 
 
 @dataclass(frozen=True)
@@ -22,6 +30,9 @@ class KioskConfig:
     log_level: str = "INFO"
     ssl_verify: bool = True
     ssl_ca_bundle: str = ""
+    # Local HTTPS for the browser page; both empty = plain HTTP (dev only)
+    local_cert: str = ""
+    local_key: str = ""
 
 
 def load_config(conf_path: str | None = None) -> KioskConfig:
@@ -50,5 +61,7 @@ def load_config(conf_path: str | None = None) -> KioskConfig:
         purge_days=int(get("database", "purge_days", "VST_PURGE_DAYS", "30")),
         log_level=get("logging", "level", "VST_LOG_LEVEL", "INFO"),
         ssl_verify=ssl_verify,
-        ssl_ca_bundle=get("ssl", "ca_bundle", "VST_SSL_CA_BUNDLE", ""),
+        ssl_ca_bundle=get("ssl", "ca_bundle", "VST_SSL_CA_BUNDLE", _pkg_file("server.crt")),
+        local_cert=get("ssl", "local_cert", "VST_LOCAL_CERT", _pkg_file("local.crt")),
+        local_key=get("ssl", "local_key", "VST_LOCAL_KEY", _pkg_file("local.key")),
     )

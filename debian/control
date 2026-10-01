@@ -3,7 +3,7 @@ Version: 1.0.0
 Section: misc
 Priority: optional
 Architecture: all
-Depends: python3 (>= 3.10), python3-venv
+Depends: python3 (>= 3.10), python3-venv, openssl, curl
 Maintainer: VirtuSense Technologies Inc. <support@virtusense.com>
 Description: VST Sentry Kiosk Display
  Stateless fall-prevention alert display for VA hospital nurse stations.

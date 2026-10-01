@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VST Sentry — Kiosk Display</title>
-    <link rel="stylesheet" href="/css/main.css">
-    <link rel="stylesheet" href="/css/alerts.css">
+    <link rel="stylesheet" href="/css/main.css?v=2">
+    <link rel="stylesheet" href="/css/alerts.css?v=3">
 </head>
 <body>
     <header id="header">
@@ -28,6 +28,8 @@
         <span class="summary-item summary-total"><span id="summary-total-count">0</span> Total Rooms</span>
     </div>
 
+    <div id="fallback-alerts" class="fallback-alerts hidden"></div>
+
     <div id="disconnect-overlay" class="disconnect-overlay hidden">
         <div class="disconnect-content">
             <div class="disconnect-icon">
@@ -43,10 +45,11 @@
         <div class="placeholder-message">Connecting to server...</div>
     </main>
 
-    <script src="/js/ws.js"></script>
-    <script src="/js/grid.js"></script>
-    <script src="/js/audio.js"></script>
-    <script src="/js/clock.js"></script>
-    <script src="/js/app.js"></script>
+    <script src="/js/ws.js?v=2"></script>
+    <script src="/js/grid.js?v=6"></script>
+    <script src="/js/banner.js?v=6"></script>
+    <script src="/js/audio.js?v=3"></script>
+    <script src="/js/clock.js?v=2"></script>
+    <script src="/js/app.js?v=6"></script>
 </body>
 </html>

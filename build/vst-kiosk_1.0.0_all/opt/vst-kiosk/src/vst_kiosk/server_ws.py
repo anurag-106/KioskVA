@@ -29,7 +29,8 @@ class ServerConnection:
 
     @property
     def ws_url(self) -> str:
-        return f"wss://{self.config.server_ip}:{self.config.server_port}/ws/kiosk/{self.config.kiosk_id}"
+        scheme = "ws" if not self.config.ssl_verify and self.config.server_port != 443 else "wss"
+        return f"{scheme}://{self.config.server_ip}:{self.config.server_port}/ws/kiosk/{self.config.kiosk_id}"
 
     def _create_ssl_context(self) -> ssl.SSLContext:
         if not self.config.ssl_verify:
@@ -78,7 +79,7 @@ class ServerConnection:
             self._backoff = min(self._backoff * 2, MAX_BACKOFF)
 
     async def _connect_and_listen(self) -> None:
-        ssl_ctx = self._create_ssl_context()
+        ssl_ctx = self._create_ssl_context() if self.ws_url.startswith("wss://") else None
         logger.info("Connecting to %s", self.ws_url)
 
         async with websockets.connect(
@@ -99,8 +100,13 @@ class ServerConnection:
 
             async for message in ws:
                 if isinstance(message, str):
-                    await self.relay.handle_server_message(message)
+                    logger.info("RAW from server: %s", message[:500])
+                    try:
+                        await self.relay.handle_server_message(message)
+                    except Exception:
+                        # One bad message (or a debug-DB write failure) must not drop the link
+                        logger.exception("Failed to handle server message")
                 else:
-                    logger.warning("Received binary message from server, ignoring")
+                    logger.warning("Received binary message from server (%d bytes), ignoring", len(message))
 
         self._ws = None

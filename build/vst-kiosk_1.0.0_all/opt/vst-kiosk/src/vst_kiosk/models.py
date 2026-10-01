@@ -19,6 +19,8 @@ class RoomState(BaseModel):
     device_id: str = ""
     nuc_status: Literal["online", "offline", "unregistered", "no_device", "paused", "calibration", "deactivated"] = "no_device"
     active_alert: str | None = None
+    alert_id: str | None = None
+    event_type: str | None = None
     monitoring_type: Literal["bed", "chair"] = "bed"
 
 
@@ -31,18 +33,31 @@ class UnitState(BaseModel):
 
 # --- Server -> Kiosk messages ---
 
+class OtherAlert(BaseModel):
+    """Active alert routed here by server fallback with no tile in this grid."""
+    alert_id: str
+    room_id: int | None = None
+    room_name: str = ""
+    unit_name: str = ""
+    device_id: str = ""
+    event_type: str = ""
+    alert_level: Literal["highRisk", "lowRisk"] = "highRisk"
+    fallback: bool = True
+
+
 class ConfigMessage(BaseModel):
     type: Literal["config"]
     kiosk_id: str = ""
     facility: str = ""
     synced_at: str = ""
     units: list[UnitState] = []
+    other_alerts: list[OtherAlert] = []
 
 
 class AlertMessage(BaseModel):
     type: Literal["alert"]
     alert_id: str
-    room_id: int
+    room_id: int | None = None
     room_name: str = ""
     floor: str = ""
     unit_name: str = ""
@@ -52,13 +67,14 @@ class AlertMessage(BaseModel):
     event_type: str = ""
     alert_level: Literal["highRisk", "lowRisk"] = "highRisk"
     event_time: str = ""
+    fallback: bool = False
 
 
 class AlertClearedMessage(BaseModel):
     type: Literal["alert_cleared"]
     alert_id: str
     device_id: str = ""
-    room_id: int
+    room_id: int | None = None
     room_name: str = ""
     unit_name: str = ""
 
@@ -66,7 +82,7 @@ class AlertClearedMessage(BaseModel):
 class DeviceOfflineMessage(BaseModel):
     type: Literal["device_offline"]
     device_id: str = ""
-    room_id: int
+    room_id: int | None = None
     room_name: str = ""
     unit_name: str = ""
 
@@ -74,9 +90,41 @@ class DeviceOfflineMessage(BaseModel):
 class DeviceOnlineMessage(BaseModel):
     type: Literal["device_online"]
     device_id: str = ""
-    room_id: int
+    room_id: int | None = None
     room_name: str = ""
     unit_name: str = ""
+
+
+class KeyboardEventMessage(BaseModel):
+    """Nurse paused/resumed/changed mode on NUC."""
+    type: Literal["keyboard_event"]
+    device_id: str = ""
+    room_id: int | None = None
+    room_name: str = ""
+    unit_name: str = ""
+    event_status: str = ""
+    monitoring_type: str = ""
+    nuc_status: str = ""
+
+
+class NurseArrivedMessage(BaseModel):
+    """NUC detected second person near patient."""
+    type: Literal["nurse_arrived"]
+    device_id: str = ""
+    room_id: int | None = None
+    room_name: str = ""
+    unit_name: str = ""
+
+
+class DeviceStateChangeMessage(BaseModel):
+    """Heartbeat-reported NUC state changed (pause, calibration, bed/chair mode)."""
+    type: Literal["device_state_change"]
+    device_id: str = ""
+    room_id: int | None = None
+    room_name: str = ""
+    unit_name: str = ""
+    changes: dict = {}
+    current_state: dict = {}
 
 
 class RoomAddedMessage(BaseModel):
@@ -120,6 +168,9 @@ ServerMessage = Annotated[
         AlertClearedMessage,
         DeviceOfflineMessage,
         DeviceOnlineMessage,
+        KeyboardEventMessage,
+        NurseArrivedMessage,
+        DeviceStateChangeMessage,
         RoomAddedMessage,
         RoomRemovedMessage,
     ],

@@ -33,8 +33,27 @@ const Grid = (function () {
         }
     }
 
-    // Track acknowledged alerts
+    // Track acknowledged alerts by alert_id (a new alert in the same room is un-acked)
     const ackedAlerts = new Set();
+
+    // Authoritative per-room state (config + incremental updates). Tiles are
+    // always rebuilt from this — never inferred back from the DOM/icon.
+    var rooms = {};
+
+    // Bed vs chair for an exit alert comes from the alert itself, not the
+    // room's last-known mode (which can be stale).
+    var BED_EVENTS = { gettingOutBed: 1, gotOutsideBed: 1 };
+    var CHAIR_EVENTS = { gettingOutChair: 1, slidingOutChair: 1, sittingInChair: 1 };
+
+    function exitKind(room) {
+        var ev = room.event_type || "";
+        if (ev === "fallen") return "fall";
+        if (BED_EVENTS[ev]) return "bed";
+        if (CHAIR_EVENTS[ev]) return "chair";
+        if (/chair/i.test(ev)) return "chair";
+        if (/bed/i.test(ev)) return "bed";
+        return room.monitoring_type || "bed";
+    }
 
     // Track alert timestamps for duration display
     var alertTimestamps = {};
@@ -44,6 +63,7 @@ const Grid = (function () {
 
     function renderFullGrid(config) {
         container.innerHTML = "";
+        rooms = {};
 
         if (!config || !config.units || config.units.length === 0) {
             container.innerHTML = '<div class="placeholder-message">No rooms configured</div>';
@@ -78,6 +98,7 @@ const Grid = (function () {
             var sorted = sortRooms(unit.rooms);
 
             sorted.forEach(function (room) {
+                rooms[room.room_id] = Object.assign({}, room);
                 // Track alert start time if not already tracked
                 if (room.active_alert && !alertTimestamps[room.room_id]) {
                     alertTimestamps[room.room_id] = Date.now();
@@ -111,6 +132,11 @@ const Grid = (function () {
 
         var state = getTileState(room);
         var monType = room.monitoring_type || "bed";
+        if (room.active_alert) {
+            // Exit icon follows the alert type; a fall uses the current mode's icon
+            var kind = exitKind(room);
+            if (kind !== "fall") monType = kind;
+        }
 
         // Left icon panel
         var iconPanel = document.createElement("div");
@@ -164,7 +190,7 @@ const Grid = (function () {
         }
 
         // Ack indicator
-        if (room.active_alert && ackedAlerts.has(room.room_id)) {
+        if (room.active_alert && ackedAlerts.has(room.alert_id)) {
             tile.classList.add("tile-acked");
         }
 
@@ -234,7 +260,8 @@ const Grid = (function () {
 
     function getTileState(room) {
         var monType = room.monitoring_type || "bed";
-        var exitLabel = monType === "chair" ? "Chair\nExit" : "Bed\nExit";
+        var kind = exitKind(room);
+        var exitLabel = kind === "fall" ? "Fall\nDetected" : (kind === "chair" ? "Chair\nExit" : "Bed\nExit");
 
         // Active alert takes priority
         if (room.active_alert === "highRisk") {
@@ -303,6 +330,10 @@ const Grid = (function () {
         }
     }
 
+    function hasRoom(roomId) {
+        return roomId != null && !!container.querySelector('[data-room-id="' + roomId + '"]');
+    }
+
     function updateRoom(roomId, updates) {
         // Track alert timestamps on updates
         if (updates.active_alert && !alertTimestamps[roomId]) {
@@ -310,14 +341,18 @@ const Grid = (function () {
         } else if (updates.active_alert === null) {
             delete alertTimestamps[roomId];
         }
-
         var tile = container.querySelector('[data-room-id="' + roomId + '"]');
-        if (!tile) return;
+        if (!tile || !rooms[roomId]) return;
 
-        // Find the room data in the grid, rebuild the tile
+        var room = rooms[roomId];
+        Object.assign(room, updates);
+        if (updates.active_alert === null) {
+            room.alert_id = null;
+            room.event_type = null;
+        }
+
         var parent = tile.parentElement;
-        var newRoom = Object.assign({}, getRoomDataFromTile(tile), updates);
-        var newTile = createTile(newRoom);
+        var newTile = createTile(room);
         parent.replaceChild(newTile, tile);
 
         // Re-sort: move alerting tiles to top within their grid
@@ -377,65 +412,28 @@ const Grid = (function () {
         }
     }
 
-    function getRoomDataFromTile(tile) {
-        var roomId = parseInt(tile.dataset.roomId, 10);
-        var iconPanel = tile.querySelector(".tile-icon-panel");
-        var roomNum = tile.querySelector(".tile-room-number");
-
-        return {
-            room_id: roomId,
-            name: roomNum ? roomNum.textContent : "",
-            nuc_status: extractNucStatus(tile),
-            active_alert: extractAlertState(tile),
-            monitoring_type: extractMonitoringType(iconPanel)
-        };
-    }
-
-    function extractNucStatus(tile) {
-        var classes = tile.className;
-        if (classes.includes("device-offline")) return "offline";
-        if (classes.includes("device-no_device")) return "no_device";
-        if (classes.includes("device-paused")) return "paused";
-        if (classes.includes("device-calibration")) return "calibration";
-        if (classes.includes("device-deactivated")) return "deactivated";
-        return "online";
-    }
-
-    function extractAlertState(tile) {
-        if (tile.classList.contains("alert-active")) {
-            var panel = tile.querySelector(".tile-icon-panel");
-            if (panel.classList.contains("state-highRisk")) return "highRisk";
-            if (panel.classList.contains("state-lowRisk")) return "lowRisk";
-        }
-        return null;
-    }
-
-    function extractMonitoringType(panel) {
-        if (!panel) return "bed";
-        var img = panel.querySelector(".tile-icon");
-        if (img && img.src && img.src.includes("chair")) return "chair";
-        return "bed";
-    }
-
     function onAcknowledge(room) {
-        if (ackedAlerts.has(room.room_id)) return;
-        ackedAlerts.add(room.room_id);
+        var alertId = (rooms[room.room_id] || {}).alert_id;
+        if (!alertId || ackedAlerts.has(alertId)) return;
+        ackedAlerts.add(alertId);
 
         var tile = container.querySelector('[data-room-id="' + room.room_id + '"]');
         if (tile) tile.classList.add("tile-acked");
 
         KioskWS.send({
             type: "ack",
-            alert_id: room._alert_id || ""
+            alert_id: alertId,
+            room_id: room.room_id
         });
     }
 
     function clearAck(roomId) {
-        ackedAlerts.delete(roomId);
+        ackedAlerts.delete((rooms[roomId] || {}).alert_id);
     }
 
     function removeRoom(roomId) {
         delete alertTimestamps[roomId];
+        delete rooms[roomId];
         var tile = container.querySelector('[data-room-id="' + roomId + '"]');
         if (tile) tile.remove();
         updateSummaryFromDOM();
@@ -455,6 +453,7 @@ const Grid = (function () {
     return {
         renderFullGrid: renderFullGrid,
         updateRoom: updateRoom,
+        hasRoom: hasRoom,
         removeRoom: removeRoom,
         clearAck: clearAck,
         getLastConfig: getLastConfig,

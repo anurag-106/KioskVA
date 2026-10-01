@@ -31,23 +31,31 @@
         var config = e.detail;
         Grid.setLastConfig(config);
         Grid.renderFullGrid(config);
+        Banner.setAll(config.other_alerts);
         AudioAlert.recalculate();
     });
 
     // New alert
     window.addEventListener("ws:alert", function (e) {
         var data = e.detail;
-        Grid.updateRoom(data.room_id, {
-            active_alert: data.alert_level,
-            nuc_status: "online",
-            _alert_id: data.alert_id
-        });
+        if (Grid.hasRoom(data.room_id)) {
+            Grid.updateRoom(data.room_id, {
+                active_alert: data.alert_level,
+                nuc_status: "online",
+                alert_id: data.alert_id,
+                event_type: data.event_type
+            });
+        } else {
+            // Fallback-routed alert with no tile here — must still be seen
+            Banner.add(data);
+        }
         AudioAlert.recalculate();
     });
 
     // Alert cleared
     window.addEventListener("ws:alert_cleared", function (e) {
         var data = e.detail;
+        Banner.remove(data.alert_id);
         Grid.clearAck(data.room_id);
         Grid.updateRoom(data.room_id, {
             active_alert: null
@@ -59,8 +67,7 @@
     window.addEventListener("ws:device_offline", function (e) {
         var data = e.detail;
         Grid.updateRoom(data.room_id, {
-            nuc_status: "offline",
-            active_alert: null
+            nuc_status: "offline"
         });
         AudioAlert.recalculate();
     });
@@ -75,35 +82,41 @@
 
     // Keyboard event — nurse paused/resumed/switched mode on NUC
     window.addEventListener("ws:keyboard_event", function (e) {
+        // Real NUC events: "off" = paused; "on" / "monitoring" / "smart_resume_*"
+        // = monitoring in monitoring_type's mode ("fall" keeps the current mode).
+        // Alerts are not cleared here — the server sends alert_cleared.
         var data = e.detail;
-        var statusMap = {
-            "system_paused": "paused",
-            "system_resumed": "online",
-            "off": "deactivated",
-            "system_on_bed": "online",
-            "system_on_chair": "online",
-            "calibration": "calibration"
-        };
         var updates = {};
-        var mapped = statusMap[data.event_status];
-        if (mapped) {
-            updates.nuc_status = mapped;
-        }
-        // Only update monitoring_type for explicit mode switches
-        if (data.event_status === "system_on_bed" || data.event_status === "system_on_chair") {
-            updates.monitoring_type = data.monitoring_type;
-        }
-        // If resuming or switching mode, clear stale alert display
-        if (data.event_status === "system_resumed" || data.event_status === "system_on_bed" || data.event_status === "system_on_chair") {
-            updates.active_alert = null;
+        if (data.event_status === "off") {
+            updates.nuc_status = "paused";
+        } else if (["on", "monitoring", "smart_resume_bed", "smart_resume_chair"].indexOf(data.event_status) !== -1) {
+            updates.nuc_status = "online";
+            if (data.monitoring_type === "bed" || data.monitoring_type === "chair") {
+                updates.monitoring_type = data.monitoring_type;
+            }
         }
         Grid.updateRoom(data.room_id, updates);
         AudioAlert.recalculate();
     });
 
-    // Nurse arrived — keep alert visible, server will send alert_cleared
-    window.addEventListener("ws:nurse_arrived", function (e) {
-        // Just forward to grid for potential visual indicator in future
+    // Heartbeat-reported state change (pause / calibration / bed-chair mode)
+    window.addEventListener("ws:device_state_change", function (e) {
+        var data = e.detail;
+        var changes = data.changes || {};
+        var state = data.current_state || {};
+        var updates = {};
+        if (changes.pause_status || changes.type) {
+            if (state.pause_status === "paused") updates.nuc_status = "paused";
+            else if (state.type === "calibration") updates.nuc_status = "calibration";
+            else updates.nuc_status = "online";
+        }
+        if (changes.mode && (state.mode === "bed" || state.mode === "chair")) {
+            updates.monitoring_type = state.mode;
+        }
+        if (Object.keys(updates).length) {
+            Grid.updateRoom(data.room_id, updates);
+            AudioAlert.recalculate();
+        }
     });
 
     // Room added — request fresh config

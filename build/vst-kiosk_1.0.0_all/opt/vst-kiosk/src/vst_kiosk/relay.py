@@ -19,12 +19,29 @@ from .models import (
     ConnectionStatusMessage,
     DeviceOfflineMessage,
     DeviceOnlineMessage,
+    DeviceStateChangeMessage,
+    KeyboardEventMessage,
+    NurseArrivedMessage,
     RoomAddedMessage,
     RoomRemovedMessage,
     parse_server_message,
 )
 
 logger = logging.getLogger(__name__)
+
+MONITORING_EVENTS = ("on", "monitoring", "smart_resume_bed", "smart_resume_chair")
+
+
+def keyboard_event_updates(event_status: str, monitoring_type: str) -> dict:
+    """Room-state changes for a NUC keyboard_event (mirrored in frontend/js/app.js)."""
+    if event_status == "off":
+        return {"nuc_status": "paused"}
+    if event_status in MONITORING_EVENTS:
+        updates = {"nuc_status": "online"}
+        if monitoring_type in ("bed", "chair"):   # "fall" keeps the current tile mode
+            updates["monitoring_type"] = monitoring_type
+        return updates
+    return {}
 
 
 class MessageRelay:
@@ -89,6 +106,9 @@ class MessageRelay:
             msg = parse_server_message(data)
         except Exception:
             logger.warning("Unknown or invalid message type: %s", msg_type)
+            if msg_type == "config":
+                # Still the server's full truth — keep it for late-joining browsers
+                self._cached_config = data
             await self._broadcast(data)
             return
 
@@ -109,7 +129,7 @@ class MessageRelay:
 
         if msg_type == "ack" and send_upstream:
             alert_id = data.get("alert_id", "")
-            room_id = data.get("room_id", 0)
+            room_id = data.get("room_id") or 0
             await self.db.log_alert(room_id, "", "acked")
             await send_upstream(raw)
             await self.db.log_message("server_out", "ack", raw)
@@ -124,14 +144,28 @@ class MessageRelay:
             self._cached_config = raw_data
 
         elif isinstance(msg, AlertMessage):
-            self._update_room_in_cache(msg.room_id, {
+            found = self._update_room_in_cache(msg.room_id, {
                 "active_alert": msg.alert_level,
+                "alert_id": msg.alert_id,
+                "event_type": msg.event_type,
             })
+            if not found and self._cached_config is not None:
+                # No tile for this room (fallback routing) — shown as a banner
+                others = self._cached_config.setdefault("other_alerts", [])
+                if not any(a.get("alert_id") == msg.alert_id for a in others):
+                    others.append(raw_data)
 
         elif isinstance(msg, AlertClearedMessage):
             self._update_room_in_cache(msg.room_id, {
                 "active_alert": None,
+                "alert_id": None,
+                "event_type": None,
             })
+            if self._cached_config is not None:
+                self._cached_config["other_alerts"] = [
+                    a for a in self._cached_config.get("other_alerts", [])
+                    if a.get("alert_id") != msg.alert_id
+                ]
 
         elif isinstance(msg, DeviceOfflineMessage):
             self._update_room_in_cache(msg.room_id, {
@@ -143,18 +177,48 @@ class MessageRelay:
                 "nuc_status": "online",
             })
 
+        elif isinstance(msg, KeyboardEventMessage):
+            # Real NUC events: "off" = paused; "on" / "monitoring" /
+            # "smart_resume_*" = monitoring in monitoringType's mode.
+            # Alerts are NOT cleared here — the server sends alert_cleared.
+            updates = keyboard_event_updates(msg.event_status, msg.monitoring_type)
+            if updates:
+                self._update_room_in_cache(msg.room_id, updates)
+
+        elif isinstance(msg, DeviceStateChangeMessage):
+            state = msg.current_state
+            updates = {}
+            if "pause_status" in msg.changes or "type" in msg.changes:
+                if state.get("pause_status") == "paused":
+                    updates["nuc_status"] = "paused"
+                elif state.get("type") == "calibration":
+                    updates["nuc_status"] = "calibration"
+                else:
+                    updates["nuc_status"] = "online"
+            if "mode" in msg.changes and state.get("mode") in ("bed", "chair"):
+                updates["monitoring_type"] = state["mode"]
+            if updates:
+                self._update_room_in_cache(msg.room_id, updates)
+
+        elif isinstance(msg, NurseArrivedMessage):
+            # Informational only: the alert stays active until the server sends
+            # alert_cleared (matches the browser and the server's config)
+            pass
+
         elif isinstance(msg, RoomRemovedMessage):
             self._remove_room_from_cache(msg.room_id)
 
-    def _update_room_in_cache(self, room_id: int, updates: dict) -> None:
-        """Apply incremental updates to a room in the cached config."""
-        if not self._cached_config:
-            return
+    def _update_room_in_cache(self, room_id: int | None, updates: dict) -> bool:
+        """Apply incremental updates to a room in the cached config.
+        Returns False if the room is not in this kiosk's grid."""
+        if not self._cached_config or room_id is None:
+            return False
         for unit in self._cached_config.get("units", []):
             for room in unit.get("rooms", []):
                 if room.get("room_id") == room_id:
                     room.update(updates)
-                    return
+                    return True
+        return False
 
     def _remove_room_from_cache(self, room_id: int) -> None:
         if not self._cached_config:
@@ -166,14 +230,15 @@ class MessageRelay:
 
     async def _log_event(self, msg: Any) -> None:
         """Log specific events to dedicated SQLite tables."""
+        room_id = getattr(msg, "room_id", None) or 0
         if isinstance(msg, AlertMessage):
-            await self.db.log_alert(msg.room_id, msg.alert_level, "new")
+            await self.db.log_alert(room_id, msg.alert_level, "new")
         elif isinstance(msg, AlertClearedMessage):
-            await self.db.log_alert(msg.room_id, "", "cleared")
+            await self.db.log_alert(room_id, "", "cleared")
         elif isinstance(msg, DeviceOfflineMessage):
-            await self.db.log_device_status(msg.room_id, "offline")
+            await self.db.log_device_status(room_id, "offline")
         elif isinstance(msg, DeviceOnlineMessage):
-            await self.db.log_device_status(msg.room_id, "online")
+            await self.db.log_device_status(room_id, "online")
 
     async def _broadcast(self, data: dict) -> None:
         """Send a message to all connected browser clients."""

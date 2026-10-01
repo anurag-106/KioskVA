@@ -1,4 +1,4 @@
-#!/home/vst/Documents/KioskVA/.venv/bin/python3
+#!/home/neoklis/sentry/KioskVA/.venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
