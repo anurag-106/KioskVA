@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 
 # --- Room and Unit models used in config ---
@@ -183,15 +183,16 @@ BrowserMessage = Annotated[
 ]
 
 
+# Built once: constructing a TypeAdapter compiles the schema (~0.5 ms per message)
+_SERVER_ADAPTER = TypeAdapter(ServerMessage)
+_BROWSER_ADAPTER = TypeAdapter(BrowserMessage)
+
+
 def parse_server_message(data: dict) -> ServerMessage:
     """Parse a raw dict from the server into a typed message."""
-    from pydantic import TypeAdapter
-    adapter = TypeAdapter(ServerMessage)
-    return adapter.validate_python(data)
+    return _SERVER_ADAPTER.validate_python(data)
 
 
 def parse_browser_message(data: dict) -> BrowserMessage:
     """Parse a raw dict from the browser into a typed message."""
-    from pydantic import TypeAdapter
-    adapter = TypeAdapter(BrowserMessage)
-    return adapter.validate_python(data)
+    return _BROWSER_ADAPTER.validate_python(data)

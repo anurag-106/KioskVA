@@ -1,13 +1,14 @@
 """SQLite debug database for logging all kiosk events.
 
-Uses Python's built-in sqlite3. All writes run via asyncio.to_thread() to avoid
-blocking the event loop.
+Uses Python's built-in sqlite3. Every DB call runs on one dedicated writer
+thread (one connection, writes in order, no lock contention). Log writes are
+fire-and-forget: they never delay relaying a message to the browser.
 """
 
 import asyncio
 import logging
 import sqlite3
-import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -61,24 +62,26 @@ DELETE FROM device_status WHERE timestamp < strftime('%Y-%m-%dT%H:%M:%f', 'now',
 class KioskDB:
     def __init__(self, db_path: str):
         self._db_path = db_path
-        self._local = threading.local()
+        self._conn: sqlite3.Connection | None = None
+        self._writer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="kiosk-db")
 
     def _get_conn(self) -> sqlite3.Connection:
-        """Get a thread-local SQLite connection."""
-        conn = getattr(self._local, "conn", None)
-        if conn is None:
+        """The writer thread's connection (only ever used on that thread)."""
+        if self._conn is None:
             Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-            conn = sqlite3.connect(self._db_path, check_same_thread=False)
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
-            self._local.conn = conn
-        return conn
+            self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA synchronous=NORMAL")
+        return self._conn
 
-    def init_db(self) -> None:
+    def _init_db(self) -> None:
         conn = self._get_conn()
         conn.executescript(SCHEMA)
         conn.commit()
         logger.info("Database initialized at %s", self._db_path)
+
+    def init_db(self) -> None:
+        self._writer.submit(self._init_db).result()
 
     def _log_connection(self, target: str, event: str, details: str = "") -> None:
         try:
@@ -136,25 +139,30 @@ class KioskDB:
         except Exception:
             logger.exception("Failed to purge old records")
 
-    # --- Async wrappers (fire-and-forget from the relay) ---
+    # --- Async wrappers: queue the write and return immediately ---
+    # (the _log_* functions catch and log their own errors)
 
     async def log_connection(self, target: str, event: str, details: str = "") -> None:
-        await asyncio.to_thread(self._log_connection, target, event, details)
+        self._writer.submit(self._log_connection, target, event, details)
 
     async def log_message(self, direction: str, msg_type: str, raw_json: str) -> None:
-        await asyncio.to_thread(self._log_message, direction, msg_type, raw_json)
+        self._writer.submit(self._log_message, direction, msg_type, raw_json)
 
     async def log_alert(self, room_id: int, alert_state: str, event: str) -> None:
-        await asyncio.to_thread(self._log_alert, room_id, alert_state, event)
+        self._writer.submit(self._log_alert, room_id, alert_state, event)
 
     async def log_device_status(self, room_id: int, status: str) -> None:
-        await asyncio.to_thread(self._log_device_status, room_id, status)
+        self._writer.submit(self._log_device_status, room_id, status)
 
     async def purge(self, days: int) -> None:
-        await asyncio.to_thread(self._purge, days)
+        await asyncio.wrap_future(self._writer.submit(self._purge, days))
+
+    def _close(self) -> None:
+        if self._conn:
+            self._conn.close()
+            self._conn = None
 
     def close(self) -> None:
-        conn = getattr(self._local, "conn", None)
-        if conn:
-            conn.close()
-            self._local.conn = None
+        """Flush queued writes, then close."""
+        self._writer.submit(self._close).result()
+        self._writer.shutdown(wait=True)

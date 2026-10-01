@@ -112,16 +112,21 @@ const Grid = (function () {
             container.appendChild(section);
         });
 
+        // Forget acks for alerts that are no longer active (page runs for weeks)
+        var activeIds = new Set(Object.keys(rooms).map(function (id) { return rooms[id].alert_id; }));
+        ackedAlerts.forEach(function (id) { if (!activeIds.has(id)) ackedAlerts.delete(id); });
+
         updateSummary(config);
         startDurationUpdater();
     }
 
+    function alertPriority(level) {
+        return level === "highRisk" ? 0 : (level === "lowRisk" ? 1 : 2);
+    }
+
     function sortRooms(rooms) {
-        var priority = { highRisk: 0, lowRisk: 1 };
         return rooms.slice().sort(function (a, b) {
-            var pa = a.active_alert ? priority[a.active_alert] : 2;
-            var pb = b.active_alert ? priority[b.active_alert] : 2;
-            return pa - pb;
+            return alertPriority(a.active_alert) - alertPriority(b.active_alert);
         });
     }
 
@@ -345,6 +350,7 @@ const Grid = (function () {
         if (!tile || !rooms[roomId]) return;
 
         var room = rooms[roomId];
+        var oldPriority = alertPriority(room.active_alert);
         Object.assign(room, updates);
         if (updates.active_alert === null) {
             room.alert_id = null;
@@ -355,8 +361,11 @@ const Grid = (function () {
         var newTile = createTile(room);
         parent.replaceChild(newTile, tile);
 
-        // Re-sort: move alerting tiles to top within their grid
-        resortGrid(parent);
+        // Re-sort (alerting tiles to top) only when this tile's priority moved;
+        // re-appending every tile on each status update forced a full relayout
+        if (alertPriority(room.active_alert) !== oldPriority) {
+            resortGrid(parent);
+        }
 
         // Update summary from last config
         updateSummaryFromDOM();

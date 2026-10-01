@@ -1,6 +1,6 @@
 """Upstream WebSocket client — connects to the VST Server.
 
-Implements exponential backoff reconnection (2s -> 4s -> 8s -> max 30s).
+Implements exponential backoff reconnection (2s -> 4s -> 8s -> max 10s).
 """
 
 import asyncio
@@ -16,7 +16,15 @@ from .relay import MessageRelay
 logger = logging.getLogger(__name__)
 
 MIN_BACKOFF = 2
-MAX_BACKOFF = 30
+# Kept short: while disconnected this kiosk receives no alerts. A few kiosks
+# retrying every 10s is negligible load for the server.
+MAX_BACKOFF = 10
+# A silently hung server/link (no TCP close) is detected within
+# PING_INTERVAL + PING_TIMEOUT + CLOSE_TIMEOUT (~12s; was 20 + 10 + 5 = 35s).
+# The close handshake can't complete on a dead link, so don't wait long for it.
+PING_INTERVAL = 5
+PING_TIMEOUT = 5
+CLOSE_TIMEOUT = 2
 
 
 class ServerConnection:
@@ -85,9 +93,10 @@ class ServerConnection:
         async with websockets.connect(
             self.ws_url,
             ssl=ssl_ctx,
-            ping_interval=20,
-            ping_timeout=10,
-            close_timeout=5,
+            ping_interval=PING_INTERVAL,
+            ping_timeout=PING_TIMEOUT,
+            close_timeout=CLOSE_TIMEOUT,
+            max_size=16 * 1024 * 1024,  # default 1 MiB: a big config would fail the link in a reconnect loop
         ) as ws:
             self._ws = ws
             self._backoff = MIN_BACKOFF
@@ -100,7 +109,7 @@ class ServerConnection:
 
             async for message in ws:
                 if isinstance(message, str):
-                    logger.info("RAW from server: %s", message[:500])
+                    logger.debug("RAW from server: %s", message[:500])
                     try:
                         await self.relay.handle_server_message(message)
                     except Exception:

@@ -133,10 +133,11 @@ def create_app(config: KioskConfig) -> FastAPI:
 
 
 async def _daily_purge(db: KioskDB, purge_days: int) -> None:
-    """Run DB purge once every 24 hours."""
+    """Run DB purge at startup, then every 24 hours. (Purging only after the
+    first 24h meant a kiosk restarted more often than daily never purged.)"""
     while True:
-        await asyncio.sleep(86400)
         try:
             await db.purge(purge_days)
         except Exception:
             logger.exception("Daily purge failed")
+        await asyncio.sleep(86400)

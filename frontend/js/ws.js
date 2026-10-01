@@ -5,7 +5,7 @@
 const KioskWS = (function () {
     let socket = null;
     let backoff = 1000; // start at 1s
-    const MAX_BACKOFF = 15000;
+    const MAX_BACKOFF = 5000; // local backend — come back quickly after it restarts
     const MIN_BACKOFF = 1000;
     let reconnectTimer = null;
 

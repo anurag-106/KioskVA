@@ -22,6 +22,7 @@ const Banner = (function () {
     function setAll(list) {
         Object.keys(alerts).forEach(function (id) { delete alerts[id]; });
         (list || []).forEach(function (a) { alerts[a.alert_id] = a; });
+        acked.forEach(function (id) { if (!alerts[id]) acked.delete(id); });
         render();
     }
 

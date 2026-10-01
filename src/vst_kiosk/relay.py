@@ -5,6 +5,7 @@ Maintains a cached copy of the current room state so new browser connections
 get immediate data.
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -30,6 +31,10 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 MONITORING_EVENTS = ("on", "monitoring", "smart_resume_bed", "smart_resume_chair")
+
+# A browser that can't take a message in this time is dropped; Chromium
+# reconnects and gets the cached config.
+BROWSER_SEND_TIMEOUT = 5
 
 
 def keyboard_event_updates(event_status: str, monitoring_type: str) -> dict:
@@ -100,7 +105,6 @@ class MessageRelay:
             return
 
         msg_type = data.get("type", "unknown")
-        await self.db.log_message("server_in", msg_type, raw[:5000])
 
         try:
             msg = parse_server_message(data)
@@ -110,11 +114,14 @@ class MessageRelay:
                 # Still the server's full truth — keep it for late-joining browsers
                 self._cached_config = data
             await self._broadcast(data)
+            await self.db.log_message("server_in", msg_type, raw[:5000])
             return
 
+        # Display first; the debug log is queued after
         await self._update_cache(msg, data)
-        await self._log_event(msg)
         await self._broadcast(data)
+        await self.db.log_message("server_in", msg_type, raw[:5000])
+        await self._log_event(msg)
 
     async def handle_browser_message(self, raw: str, send_upstream: Any = None) -> None:
         """Process a message from a browser client."""
@@ -128,10 +135,9 @@ class MessageRelay:
         await self.db.log_message("browser_in", msg_type, raw[:5000])
 
         if msg_type == "ack" and send_upstream:
-            alert_id = data.get("alert_id", "")
             room_id = data.get("room_id") or 0
-            await self.db.log_alert(room_id, "", "acked")
             await send_upstream(raw)
+            await self.db.log_alert(room_id, "", "acked")
             await self.db.log_message("server_out", "ack", raw)
 
         elif msg_type == "sync_request" and send_upstream:
@@ -241,15 +247,26 @@ class MessageRelay:
             await self.db.log_device_status(room_id, "online")
 
     async def _broadcast(self, data: dict) -> None:
-        """Send a message to all connected browser clients."""
-        if not self._browser_clients:
+        """Send a message to all connected browser clients, concurrently.
+        Iterates a snapshot: a browser (re)connecting mid-send used to raise
+        'Set changed size during iteration' and drop the message for the rest."""
+        clients = list(self._browser_clients)
+        if not clients:
             return
         text = json.dumps(data)
-        disconnected = set()
-        for ws in self._browser_clients:
-            try:
-                await ws.send_text(text)
-            except Exception:
-                disconnected.add(ws)
-        for ws in disconnected:
-            self.unregister_browser(ws)
+        results = await asyncio.gather(
+            *(asyncio.wait_for(ws.send_text(text), BROWSER_SEND_TIMEOUT) for ws in clients),
+            return_exceptions=True,
+        )
+        for ws, result in zip(clients, results):
+            if isinstance(result, BaseException):
+                logger.warning("Dropping browser client: send failed (%s)", type(result).__name__)
+                self.unregister_browser(ws)
+                asyncio.create_task(self._close_browser(ws))
+
+    @staticmethod
+    async def _close_browser(ws: WebSocket) -> None:
+        try:
+            await asyncio.wait_for(ws.close(), BROWSER_SEND_TIMEOUT)
+        except Exception:
+            pass
